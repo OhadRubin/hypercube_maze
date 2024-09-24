@@ -28,10 +28,10 @@ def generate_maze(G):
     # Assign random weights to each edge
     for u, v in G.edges():
         G.edges[u, v]["weight"] = random.random()
-        
+
     # Compute the minimum spanning tree using Prim's algorithm
     T = nx.minimum_spanning_tree(G, algorithm="prim")
-    # additionally add the hamming distance as an attribute to each edge
+    # Additionally add the hamming distance as an attribute to each edge
     for u, v in T.edges():
         hamming_dist = sum([1 for i in range(len(u)) if u[i] != v[i]])
         T.edges[u, v]["hamming_dist"] = hamming_dist
@@ -45,12 +45,27 @@ def precompute_node_positions(maze, screen_size):
     # Use spring layout for a better spread of nodes
     pos = nx.spring_layout(
         maze,
-        scale=min(screen_size)*2.5,
+        scale=min(screen_size) * 2.5,
         center=(0, 0),  # Center positions around (0, 0) for easier camera calculations
         iterations=50,
         weight="hamming_dist",
     )
     return pos
+
+
+def draw_arrow(screen, color, start, end, arrow_size=10, arrow_width=2):
+    """
+    Draws an arrow from the start position to the end position.
+    """
+    pygame.draw.line(screen, color, start, end, arrow_width)
+    # Calculate the angle of the line
+    angle = np.arctan2(end[1] - start[1], end[0] - start[0]) + np.pi
+    # Calculate the arrowhead points
+    x1 = end[0] + arrow_size * np.cos(angle - np.pi / 6)
+    y1 = end[1] + arrow_size * np.sin(angle - np.pi / 6)
+    x2 = end[0] + arrow_size * np.cos(angle + np.pi / 6)
+    y2 = end[1] + arrow_size * np.sin(angle + np.pi / 6)
+    pygame.draw.polygon(screen, color, [(end[0], end[1]), (x1, y1), (x2, y2)])
 
 
 def play_maze_pygame(maze, start, goal, screen_size):
@@ -69,11 +84,12 @@ def play_maze_pygame(maze, start, goal, screen_size):
 
     current_node = start
 
-    node_radius = 15  # Increase radius for easier clicking
+    node_radius = 20  # Increase radius for easier clicking
     center_x = screen_size[0] // 2
     center_y = screen_size[1] // 2
 
     visited_nodes = set()
+    path_stack = []  # **Stack to keep track of the path taken**
 
     # Precompute positions
     all_pos = precompute_node_positions(maze, screen_size)
@@ -91,7 +107,7 @@ def play_maze_pygame(maze, start, goal, screen_size):
 
     # Game loop
     running = True
-    true_maze= maze
+    true_maze = maze
     while running:
         maze = nx.ego_graph(true_maze, current_node, radius=1)
         curr_nodes = maze.nodes()
@@ -129,8 +145,18 @@ def play_maze_pygame(maze, start, goal, screen_size):
                         animation_progress = 0.0
                         camera_start_position = camera_position.copy()
                         camera_end_position = np.array(pos[neighbor])
-                        current_node = neighbor
-                        print(f"Moved to {current_node}")
+
+                        # **Update path stack appropriately**
+                        if path_stack and neighbor == path_stack[-1]:
+                            # Going back to the previous node
+                            print(f"Moved back to {neighbor}")
+                            current_node = neighbor
+                            path_stack.pop()
+                        else:
+                            # Moving to a new node
+                            path_stack.append(current_node)
+                            current_node = neighbor
+                            print(f"Moved to {current_node}")
                         moved = True
                         break
                 if not moved:
@@ -148,17 +174,9 @@ def play_maze_pygame(maze, start, goal, screen_size):
             # End of animation
             if t >= 1.0:
                 animation_in_progress = False
-        def should_highlight(current_node, u, v):
-            """
-            Returns True if the edge (u, v) should be highlighted.
-            """
-            if u == current_node or v == current_node:
-                return True
-            return False
 
         # Draw edges (lines)
         for u, v in maze.edges():
-
             x1, y1 = pos[u]
             x2, y2 = pos[v]
             # Adjust positions relative to camera
@@ -169,10 +187,9 @@ def play_maze_pygame(maze, start, goal, screen_size):
             pygame.draw.line(
                 screen,
                 (200, 200, 200),
-                # (0, 0, 0),
                 (screen_x1, screen_y1),
                 (screen_x2, screen_y2),
-                2 if should_highlight(current_node, u,v) else 1,
+                1,
             )
 
         # Draw nodes
@@ -194,7 +211,7 @@ def play_maze_pygame(maze, start, goal, screen_size):
                         color = (0, 128, 0)  # Green for visited nodes
                     else:
                         color = (0, 0, 255)  # Blue for unvisited nodes
-                falpha=0.9
+                falpha = 0.9
                 alpha = int(255 * falpha)
                 pygame.draw.circle(
                     screen, color + (alpha,), (x_int, y_int), node_radius
@@ -205,6 +222,24 @@ def play_maze_pygame(maze, start, goal, screen_size):
                 screen.blit(
                     label_text, (x_int - node_radius - 5, y_int - node_radius - 5)
                 )
+
+        # **Draw an arrow pointing back to the previous node**
+        if path_stack and not animation_in_progress:
+            prev_node = path_stack[-1]
+            x_curr, y_curr = pos[current_node]
+            x_prev, y_prev = pos[prev_node]
+            # Adjust positions relative to camera
+            screen_x_curr = center_x + x_curr - camera_position[0]
+            screen_y_curr = center_y + y_curr - camera_position[1]
+            screen_x_prev = center_x + x_prev - camera_position[0]
+            screen_y_prev = center_y + y_prev - camera_position[1]
+            # Draw arrow from current node to previous node
+            draw_arrow(
+                screen,
+                (0, 0, 0),
+                (screen_x_prev, screen_y_prev),
+                (screen_x_curr, screen_y_curr),
+            )
 
         # Draw texts
         goal_label = "".join(map(str, goal))
@@ -241,8 +276,8 @@ def play_maze_pygame(maze, start, goal, screen_size):
 
 
 if __name__ == "__main__":
-    # Dimension of the hypercube (set to a reasonable value for visualization)
-    n = 8  # This creates a graph with 32 nodes
+    # Dimension of the hypercube
+    n = 8  # This creates a graph with 256 nodes
 
     G = generate_hypercube_graph(n)
     maze = generate_maze(G)
