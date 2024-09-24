@@ -273,7 +273,7 @@ class MazeGame(Widget):
         # Initialize camera position centered on the current node
         self.camera_position = self.all_pos[self.current_node]
         self.register_event_type("on_touch_down")
-        Clock.schedule_interval(self.update, 1.0 / 60.0)
+        Clock.schedule_interval(self.update, 1.0 / 120.0)
 
     def on_touch_down(self, touch):
         # Adjust touch position relative to camera
