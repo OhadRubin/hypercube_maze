@@ -28,8 +28,13 @@ def generate_maze(G):
     # Assign random weights to each edge
     for u, v in G.edges():
         G.edges[u, v]["weight"] = random.random()
+        
     # Compute the minimum spanning tree using Prim's algorithm
     T = nx.minimum_spanning_tree(G, algorithm="prim")
+    # additionally add the hamming distance as an attribute to each edge
+    for u, v in T.edges():
+        hamming_dist = sum([1 for i in range(len(u)) if u[i] != v[i]])
+        T.edges[u, v]["hamming_dist"] = hamming_dist
     return T
 
 
@@ -40,9 +45,10 @@ def precompute_node_positions(maze, screen_size):
     # Use spring layout for a better spread of nodes
     pos = nx.spring_layout(
         maze,
-        scale=min(screen_size) - 50,
+        scale=min(screen_size)*2.5,
         center=(0, 0),  # Center positions around (0, 0) for easier camera calculations
         iterations=50,
+        weight="hamming_dist",
     )
     return pos
 
@@ -236,7 +242,7 @@ def play_maze_pygame(maze, start, goal, screen_size):
 
 if __name__ == "__main__":
     # Dimension of the hypercube (set to a reasonable value for visualization)
-    n = 5  # This creates a graph with 32 nodes
+    n = 8  # This creates a graph with 32 nodes
 
     G = generate_hypercube_graph(n)
     maze = generate_maze(G)
