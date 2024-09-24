@@ -192,10 +192,16 @@ import numpy as np
 from kivy.app import App
 from kivy.uix.widget import Widget
 from kivy.graphics import Line, Color, Ellipse, Rectangle
-from kivy.properties import ObjectProperty, DictProperty, ListProperty, NumericProperty
+from kivy.properties import (
+    ObjectProperty,
+    DictProperty,
+    ListProperty,
+    NumericProperty,
+)
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.uix.label import Label
+from kivy.animation import Animation  # Import Animation class
 
 
 def generate_hypercube_graph(n):
@@ -238,7 +244,7 @@ def precompute_node_positions(maze, screen_size):
     # Use spring layout for a better spread of nodes
     pos = nx.spring_layout(
         maze,
-        scale=min(screen_size) * 2.5,
+        scale=min(screen_size) * 2.3,
         center=(0, 0),  # Center positions around (0, 0)
         iterations=50,
         weight="hamming_dist",
@@ -255,7 +261,9 @@ class MazeGame(Widget):
     node_radius = NumericProperty(20)  # For touch detection
     visited_nodes = ListProperty([])
     path_stack = ListProperty([])
-    camera_position = ListProperty([0, 0])  # Camera position to center the current node
+    camera_position = ListProperty(
+        [0.0, 0.0]
+    )  # Camera position to center the current node
 
     def __init__(self, **kwargs):
         super(MazeGame, self).__init__(**kwargs)
@@ -293,8 +301,12 @@ class MazeGame(Widget):
                 self.path_stack.append(self.current_node)
                 self.current_node = neighbor
                 self.visited_nodes.append(self.current_node)
-                # Update camera position to center on the new current node
-                self.camera_position = self.all_pos[self.current_node]
+                # Animate camera position to center on the new current node
+                target_pos = self.all_pos[self.current_node]
+                animation = Animation(
+                    camera_position=target_pos, duration=0.25, t="out_quad"
+                )
+                animation.start(self)
                 moved = True
                 break
         if not moved:
@@ -332,9 +344,7 @@ class MazeGame(Widget):
                     else:
                         Color(0, 0, 1)  # Blue for unvisited nodes
                 Ellipse(
-                    pos=parse_pos(
-                        screen_x - self.node_radius, screen_y - self.node_radius
-                    ),
+                    pos=(screen_x - self.node_radius, screen_y - self.node_radius),
                     size=(self.node_radius * 2, self.node_radius * 2),
                 )
                 # Draw labels
@@ -367,7 +377,7 @@ class MazeGame(Widget):
                 halign="left",
             )
             instr_text = Label(
-                text="Click on a neighboring node to move.",
+                text="Tap on a neighboring node to move.",
                 pos=parse_pos(10, self.height - 90),
                 font_size="14sp",
                 color=(0, 0, 0, 1),
